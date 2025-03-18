@@ -1,37 +1,34 @@
 import streamlit as st
-import cv2
+import av
 import numpy as np
+import cv2
+import mediapipe as mp
 from scipy.spatial import distance as dist
-import sys
+from streamlit_webrtc import webrtc_streamer, VideoProcessorBase
 import os
 import time
-from datetime import datetime
-from typing import Any, List, Tuple, Dict, Optional
-import torch
-import imutils
-import mediapipe as mp
 
-# Check if running in a headless environment
+# Check if running in a headless environment (like Streamlit Cloud)
 HEADLESS = "DISPLAY" not in os.environ and os.environ.get("XDG_SESSION_TYPE") != "x11"
 
-# Initialize pygame or use alternative sound method
+# Try importing pygame for sound alerts
 try:
     import pygame
     if not HEADLESS:
-        pygame.mixer.init()  # Initialize sound only if an audio device is present
+        pygame.mixer.init()
     else:
         print("No audio device detected. Skipping pygame.mixer.init()")
 except Exception as e:
     print(f"Error initializing pygame.mixer: {e}")
     pygame = None
 
-# Alternative sound library for headless environments
+# Alternative sound library
 try:
     from playsound import playsound
 except ImportError:
     playsound = None
 
-# Alarm sound function
+# Alarm function
 def play_alarm():
     """Plays an alarm sound using pygame or playsound."""
     if pygame and not HEADLESS:
@@ -47,34 +44,6 @@ def stop_alarm():
     if pygame and pygame.mixer.get_busy():
         pygame.mixer.music.stop()
 
-# Configure Streamlit Page
-st.set_page_config(
-    page_title="Drowsiness Detection",
-    page_icon="😴",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# Initialize session state variables
-if 'count' not in st.session_state:
-    st.session_state.count = 0
-if 'alarm_triggered' not in st.session_state:
-    st.session_state.alarm_triggered = False
-if 'ear_value' not in st.session_state:
-    st.session_state.ear_value = 0.0
-if 'detection_active' not in st.session_state:
-    st.session_state.detection_active = True
-if 'detection_paused' not in st.session_state:
-    st.session_state.detection_paused = False
-if 'earThresh' not in st.session_state:
-    st.session_state.earThresh = 0.2
-if 'earFrames' not in st.session_state:
-    st.session_state.earFrames = 30
-if 'fps' not in st.session_state:
-    st.session_state.fps = 15
-if 'time_threshold' not in st.session_state:
-    st.session_state.time_threshold = 1.0
-
 # Initialize MediaPipe Face Mesh
 mp_face_mesh = mp.solutions.face_mesh
 face_mesh = mp_face_mesh.FaceMesh(
@@ -89,89 +58,72 @@ LEFT_EYE = [362, 385, 387, 263, 373, 380]
 RIGHT_EYE = [33, 160, 158, 133, 153, 144]
 
 def eye_aspect_ratio(eye_points):
-    """Calculates Eye Aspect Ratio (EAR)."""
+    """Calculates the Eye Aspect Ratio (EAR)."""
     A = dist.euclidean(eye_points[1], eye_points[5])
     B = dist.euclidean(eye_points[2], eye_points[4])
     C = dist.euclidean(eye_points[0], eye_points[3])
     return (A + B) / (2.0 * C)
 
-def process_frame(frame):
-    """Processes a frame to detect drowsiness based on EAR."""
-    ear_thresh = st.session_state.earThresh
-    frames_threshold = st.session_state.earFrames
-    detection_active = st.session_state.detection_active
-    detection_paused = st.session_state.detection_paused
+# Video Processor Class
+class VideoProcessor(VideoProcessorBase):
+    def __init__(self):
+        self.ear_threshold = 0.2
+        self.frames_threshold = 30
+        self.count = 0
+        self.alarm_triggered = False
 
-    frame = imutils.resize(frame, width=640)
-    h, w, _ = frame.shape
+    def recv(self, frame):
+        """Processes live webcam frames for drowsiness detection."""
+        image = frame.to_ndarray(format="bgr24")
+        h, w, _ = image.shape
 
-    if not detection_paused:
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = face_mesh.process(rgb_frame)
+        # Convert frame to RGB for MediaPipe processing
+        rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        results = face_mesh.process(rgb_image)
 
         if results.multi_face_landmarks:
             for face_landmarks in results.multi_face_landmarks:
-                left_eye_points = [(int(face_landmarks.landmark[idx].x * w), int(face_landmarks.landmark[idx].y * h)) for idx in LEFT_EYE]
-                right_eye_points = [(int(face_landmarks.landmark[idx].x * w), int(face_landmarks.landmark[idx].y * h)) for idx in RIGHT_EYE]
+                left_eye = [(int(face_landmarks.landmark[i].x * w), int(face_landmarks.landmark[i].y * h)) for i in LEFT_EYE]
+                right_eye = [(int(face_landmarks.landmark[i].x * w), int(face_landmarks.landmark[i].y * h)) for i in RIGHT_EYE]
 
-                leftEAR = eye_aspect_ratio(left_eye_points)
-                rightEAR = eye_aspect_ratio(right_eye_points)
-                ear = (leftEAR + rightEAR) / 2.0
-                st.session_state.ear_value = ear  
+                left_ear = eye_aspect_ratio(left_eye)
+                right_ear = eye_aspect_ratio(right_eye)
+                ear = (left_ear + right_ear) / 2.0
 
-                if detection_active and ear < ear_thresh:
-                    st.session_state.count += 1
+                # Draw eye landmarks
+                color = (0, 255, 0) if ear > self.ear_threshold else (0, 0, 255)
+                cv2.putText(image, f"EAR: {ear:.2f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+                cv2.drawContours(image, [np.array(left_eye)], -1, color, 1)
+                cv2.drawContours(image, [np.array(right_eye)], -1, color, 1)
 
-                    if st.session_state.count >= frames_threshold:
-                        if not st.session_state.alarm_triggered:
+                # Drowsiness detection
+                if ear < self.ear_threshold:
+                    self.count += 1
+                    if self.count >= self.frames_threshold:
+                        if not self.alarm_triggered:
                             play_alarm()
-                            st.session_state.alarm_triggered = True
+                            self.alarm_triggered = True
                 else:
-                    st.session_state.count = 0
-                    if st.session_state.alarm_triggered:
+                    self.count = 0
+                    if self.alarm_triggered:
                         stop_alarm()
-                        st.session_state.alarm_triggered = False
+                        self.alarm_triggered = False
 
-    return frame
+        return av.VideoFrame.from_ndarray(image, format="bgr24")
 
-def main():
-    """Main Streamlit app loop."""
-    st.title("👀 Drowsiness Detection System")
-    
-    if st.button("Start/Stop Monitoring"):
-        st.session_state.detection_active = not st.session_state.detection_active
-    
-    if st.button("Stop Alarm"):
-        stop_alarm()
+# Streamlit UI
+st.set_page_config(page_title="👀 Drowsiness Detection", layout="wide")
 
-    st.markdown("---")
-    video_frame = st.empty()
+st.title("🚗 Live Drowsiness Detection System")
+st.markdown("""
+This app detects drowsiness in real-time using a webcam.  
+**Instructions:**
+- Grant webcam access when prompted.
+- If your EAR (Eye Aspect Ratio) goes below a threshold, an alarm will trigger.
+""")
 
-    cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
-        st.error("Error: Could not open camera.")
-        return
-    
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-
-    try:
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                st.error("Failed to capture frame from camera")
-                break
-
-            processed_frame = process_frame(frame)
-            rgb_frame = cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB)
-            video_frame.image(rgb_frame, use_column_width=True)
-
-            time.sleep(0.03)
-
-    except Exception as e:
-        st.error(f"Error processing video feed: {e}")
-    finally:
-        cap.release()
-
-if __name__ == "__main__":
-    main()
+webrtc_streamer(
+    key="drowsiness-detection",
+    video_processor_factory=VideoProcessor,
+    rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+)
