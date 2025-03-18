@@ -1,0 +1,7 @@
+/toggle_detection - Enable/disable detection
+/toggle_pause - Pause/resume processing
+/stop_alarm - Manually stop the alarm
+/set_threshold - Adjust sensitivity
+/get_stats - Retrieve current statistics
+/take_snapshot - Save the current frame
+/reset_events - Clear event history

@@ -1,0 +1,11 @@
+opencv-python-headless
+scipy
+imutils
+pygame
+facial-emotion-recognition
+streamlit
+mediapipe
+torch
+numpy
+torchvision
+facenet-pytorch
