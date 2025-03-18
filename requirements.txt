@@ -6,7 +6,7 @@ mediapipe
 pygame==2.5.0
 torch==2.0.1
 imutils==0.5.4
-facial-emotion-recognition==0.3.0
+facial-emotion-recognition
 facenet-pytorch==2.5.2
 pandas==2.0.3
 plotly==5.15.0
