@@ -5,44 +5,31 @@ import cv2
 import mediapipe as mp
 from scipy.spatial import distance as dist
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase
+import streamlit.components.v1 as components
 import os
-import time
 
-# Check if running in a headless environment (like Streamlit Cloud)
-HEADLESS = "DISPLAY" not in os.environ and os.environ.get("XDG_SESSION_TYPE") != "x11"
-
-# Try importing pygame for sound alerts
-try:
-    import pygame
-    if not HEADLESS:
-        pygame.mixer.init()
-    else:
-        print("No audio device detected. Skipping pygame.mixer.init()")
-except Exception as e:
-    print(f"Error initializing pygame.mixer: {e}")
-    pygame = None
-
-# Alternative sound library
-try:
-    from playsound import playsound
-except ImportError:
-    playsound = None
-
-# Alarm function
+# JavaScript-based audio functions for alarms
 def play_alarm():
-    """Plays an alarm sound using pygame or playsound."""
-    if pygame and not HEADLESS:
-        pygame.mixer.music.load("alarm.wav")
-        pygame.mixer.music.play(-1)  # Loop indefinitely
-    elif playsound:
-        playsound("alarm.wav")
-    else:
-        print("No valid sound library found. Alarm cannot be played.")
+    """Plays an alarm sound using JavaScript in Streamlit."""
+    alarm_script = """
+    <script>
+        var audio = new Audio('https://www.soundjay.com/button/beep-07.wav');  // Online alarm sound
+        audio.loop = true;
+        audio.play();
+    </script>
+    """
+    components.html(alarm_script, height=0)
 
 def stop_alarm():
-    """Stops the alarm sound."""
-    if pygame and pygame.mixer.get_busy():
-        pygame.mixer.music.stop()
+    """Stops the alarm sound using JavaScript in Streamlit."""
+    stop_script = """
+    <script>
+        var audio = new Audio('https://www.soundjay.com/button/beep-07.wav');
+        audio.pause();
+        audio.currentTime = 0;
+    </script>
+    """
+    components.html(stop_script, height=0)
 
 # Initialize MediaPipe Face Mesh
 mp_face_mesh = mp.solutions.face_mesh
@@ -102,13 +89,13 @@ class VideoProcessor(VideoProcessorBase):
                     if self.count >= self.frames_threshold:
                         if not self.alarm_triggered:
                             st.warning("⚠️ DROWSINESS DETECTED! WAKE UP! ⚠️")
-                            play_alarm()
+                            play_alarm()  # Plays alarm sound in browser
                             self.alarm_triggered = True
                 else:
                     self.count = 0
                     if self.alarm_triggered:
                         st.success("✅ You are alert now.")
-                        stop_alarm()
+                        stop_alarm()  # Stops alarm sound
                         self.alarm_triggered = False
 
         return av.VideoFrame.from_ndarray(image, format="bgr24")
