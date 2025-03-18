@@ -67,8 +67,8 @@ def eye_aspect_ratio(eye_points):
 # Video Processor Class
 class VideoProcessor(VideoProcessorBase):
     def __init__(self):
-        self.ear_threshold = 0.2
-        self.frames_threshold = 30
+        self.ear_threshold = 0.2  # EAR threshold for drowsiness
+        self.frames_threshold = 30  # Frames before triggering alarm
         self.count = 0
         self.alarm_triggered = False
 
@@ -96,30 +96,35 @@ class VideoProcessor(VideoProcessorBase):
                 cv2.drawContours(image, [np.array(left_eye)], -1, color, 1)
                 cv2.drawContours(image, [np.array(right_eye)], -1, color, 1)
 
-                # Drowsiness detection
+                # Drowsiness detection logic
                 if ear < self.ear_threshold:
                     self.count += 1
                     if self.count >= self.frames_threshold:
                         if not self.alarm_triggered:
+                            st.warning("⚠️ DROWSINESS DETECTED! WAKE UP! ⚠️")
                             play_alarm()
                             self.alarm_triggered = True
                 else:
                     self.count = 0
                     if self.alarm_triggered:
+                        st.success("✅ You are alert now.")
                         stop_alarm()
                         self.alarm_triggered = False
 
         return av.VideoFrame.from_ndarray(image, format="bgr24")
 
 # Streamlit UI
-st.set_page_config(page_title="👀 Drowsiness Detection", layout="wide")
+st.set_page_config(page_title="🚗 Drowsiness Detection", layout="wide")
 
-st.title("🚗 Live Drowsiness Detection System")
+st.title("🚗 Real-Time Drowsiness Detection System")
 st.markdown("""
 This app detects drowsiness in real-time using a webcam.  
-**Instructions:**
-- Grant webcam access when prompted.
-- If your EAR (Eye Aspect Ratio) goes below a threshold, an alarm will trigger.
+If your **Eye Aspect Ratio (EAR)** goes below a threshold for too long, an alarm will trigger.  
+
+**How to use:**
+- **Grant webcam access when prompted.**
+- **Look at the screen** and blink normally.
+- **If drowsy, the alarm will sound.**
 """)
 
 webrtc_streamer(
