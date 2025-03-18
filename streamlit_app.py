@@ -181,6 +181,7 @@ def process_frame(frame, ear_threshold, time_threshold_seconds, fps=30, detectio
                 
                 # Average the EAR for both eyes
                 ear = (leftEAR + rightEAR) / 2.0
+                st.session_state.ear_value = ear  # Update session state with current EAR
                 
                 # Draw contours around the eyes - simpler version for better performance
                 left_eye_hull = cv.convexHull(np.array(left_eye_points))
