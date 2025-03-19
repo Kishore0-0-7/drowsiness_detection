@@ -11,3 +11,4 @@ facenet-pytorch==2.5.2
 pandas==2.0.3
 plotly==5.15.0
 streamlit-webrtc
+
