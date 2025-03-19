@@ -66,17 +66,28 @@ st.markdown("""
 This app detects drowsiness in real-time using a webcam.  
 If your **Eye Aspect Ratio (EAR)** goes below a threshold for too long, an alarm will trigger.  
 
-**How to use:**
-- **Click 'Start Alarm System' before starting detection** (required for sound to work in browsers).
-- **Grant webcam access when prompted.**
-- **Look at the screen** and blink normally.
-- **If drowsy, the alarm will sound.**
+### **🔹 How to use:**
+1. **Click 'Enable Alarm' before starting detection** (required for sound to work in browsers).
+2. **Grant webcam access when prompted.**
+3. **Look at the screen** and blink normally.
+4. **If drowsy, the alarm will sound.**
 """)
 
-# Add a button to start the alarm system
-if st.button("Start Alarm System"):
-    st.session_state["alarm_enabled"] = True
-    st.success("✅ Alarm system activated. Now start the webcam.")
+# Buttons to enable/disable alarm
+if "alarm_enabled" not in st.session_state:
+    st.session_state["alarm_enabled"] = False
+
+col1, col2 = st.columns(2)
+with col1:
+    if st.button("🔊 Enable Alarm"):
+        st.session_state["alarm_enabled"] = True
+        st.success("✅ Alarm system activated.")
+
+with col2:
+    if st.button("🔕 Disable Alarm"):
+        st.session_state["alarm_enabled"] = False
+        stop_alarm()
+        st.warning("⏹️ Alarm system disabled.")
 
 # Video Processor Class
 class VideoProcessor(VideoProcessorBase):
@@ -115,13 +126,13 @@ class VideoProcessor(VideoProcessorBase):
                     self.count += 1
                     if self.count >= self.frames_threshold:
                         if not self.alarm_triggered and st.session_state.get("alarm_enabled", False):
-                            st.warning("⚠️ DROWSINESS DETECTED! WAKE UP! ⚠️")
+                            st.error("🚨 **DROWSINESS DETECTED! WAKE UP!** 🚨")
                             play_alarm()  # Plays alarm sound in browser
                             self.alarm_triggered = True
                 else:
                     self.count = 0
                     if self.alarm_triggered:
-                        st.success("✅ You are alert now.")
+                        st.success("✅ **You are alert now.**")
                         stop_alarm()  # Stops alarm sound
                         self.alarm_triggered = False
 
@@ -131,5 +142,6 @@ class VideoProcessor(VideoProcessorBase):
 webrtc_streamer(
     key="drowsiness-detection",
     video_processor_factory=VideoProcessor,
+    async_processing=True,  # Fixes threading issues
     rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
 )
