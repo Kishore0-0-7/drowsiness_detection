@@ -76,6 +76,8 @@ If your **Eye Aspect Ratio (EAR)** goes below a threshold for too long, an alarm
 # Buttons to enable/disable alarm
 if "alarm_enabled" not in st.session_state:
     st.session_state["alarm_enabled"] = False
+if "drowsy" not in st.session_state:
+    st.session_state["drowsy"] = False
 
 col1, col2 = st.columns(2)
 with col1:
@@ -88,6 +90,12 @@ with col2:
         st.session_state["alarm_enabled"] = False
         stop_alarm()
         st.warning("⏹️ Alarm system disabled.")
+
+# Show "Drowsiness Detected" message if active
+if st.session_state["drowsy"]:
+    st.error("🚨 **DROWSINESS DETECTED! WAKE UP!** 🚨")
+else:
+    st.success("✅ **You are alert.**")
 
 # Video Processor Class
 class VideoProcessor(VideoProcessorBase):
@@ -126,13 +134,13 @@ class VideoProcessor(VideoProcessorBase):
                     self.count += 1
                     if self.count >= self.frames_threshold:
                         if not self.alarm_triggered and st.session_state.get("alarm_enabled", False):
-                            st.error("🚨 **DROWSINESS DETECTED! WAKE UP!** 🚨")
+                            st.session_state["drowsy"] = True
                             play_alarm()  # Plays alarm sound in browser
                             self.alarm_triggered = True
                 else:
                     self.count = 0
                     if self.alarm_triggered:
-                        st.success("✅ **You are alert now.**")
+                        st.session_state["drowsy"] = False
                         stop_alarm()  # Stops alarm sound
                         self.alarm_triggered = False
 
