@@ -58,6 +58,26 @@ def eye_aspect_ratio(eye_points):
     C = dist.euclidean(eye_points[0], eye_points[3])
     return (A + B) / (2.0 * C)
 
+# Streamlit UI
+st.set_page_config(page_title="🚗 Drowsiness Detection", layout="wide")
+
+st.title("🚗 Real-Time Drowsiness Detection System")
+st.markdown("""
+This app detects drowsiness in real-time using a webcam.  
+If your **Eye Aspect Ratio (EAR)** goes below a threshold for too long, an alarm will trigger.  
+
+**How to use:**
+- **Click 'Start Alarm System' before starting detection** (required for sound to work in browsers).
+- **Grant webcam access when prompted.**
+- **Look at the screen** and blink normally.
+- **If drowsy, the alarm will sound.**
+""")
+
+# Add a button to start the alarm system
+if st.button("Start Alarm System"):
+    st.session_state["alarm_enabled"] = True
+    st.success("✅ Alarm system activated. Now start the webcam.")
+
 # Video Processor Class
 class VideoProcessor(VideoProcessorBase):
     def __init__(self):
@@ -94,7 +114,7 @@ class VideoProcessor(VideoProcessorBase):
                 if ear < self.ear_threshold:
                     self.count += 1
                     if self.count >= self.frames_threshold:
-                        if not self.alarm_triggered:
+                        if not self.alarm_triggered and st.session_state.get("alarm_enabled", False):
                             st.warning("⚠️ DROWSINESS DETECTED! WAKE UP! ⚠️")
                             play_alarm()  # Plays alarm sound in browser
                             self.alarm_triggered = True
@@ -107,20 +127,7 @@ class VideoProcessor(VideoProcessorBase):
 
         return av.VideoFrame.from_ndarray(image, format="bgr24")
 
-# Streamlit UI
-st.set_page_config(page_title="🚗 Drowsiness Detection", layout="wide")
-
-st.title("🚗 Real-Time Drowsiness Detection System")
-st.markdown("""
-This app detects drowsiness in real-time using a webcam.  
-If your **Eye Aspect Ratio (EAR)** goes below a threshold for too long, an alarm will trigger.  
-
-**How to use:**
-- **Grant webcam access when prompted.**
-- **Look at the screen** and blink normally.
-- **If drowsy, the alarm will sound.**
-""")
-
+# Start webcam stream
 webrtc_streamer(
     key="drowsiness-detection",
     video_processor_factory=VideoProcessor,
